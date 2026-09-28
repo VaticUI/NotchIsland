@@ -27,6 +27,7 @@ shows the volume and the next track, and turns into a mini player when you hover
 - [Installation](#installation)
 - [Usage](#usage)
 - [Supported apps](#supported-apps)
+- [Built-in player](#built-in-player)
 - [Run from source](#run-from-source)
 - [Build the executable](#build-the-executable)
 - [How it works](#how-it-works)
@@ -43,6 +44,8 @@ shows the volume and the next track, and turns into a mini player when you hover
 - 🔊 **Volume indicator**: the notch shows the volume level when you change it (and when muted).
 - 🖱️ **Full player on hover**: album art, scrolling title, source app, clickable progress bar, previous / play / next.
 - 🕒 **Clock**: with no music playing, hovering shows the time and date.
+- 🎧 **Built-in player**: search YouTube Music or paste a YouTube / Spotify link and listen
+  **without any browser window**. It takes priority over every other media source.
 - 🪄 **Spring animations**: a slight bounce, in the spirit of Apple's animations.
 - 🫥 **Unobtrusive**: no taskbar entry, never steals focus, and clicks next to the notch go straight through.
 - 🚀 **Optional autostart** from the system tray icon.
@@ -81,7 +84,8 @@ See [Run from source](#run-from-source).
 | Click ⏮ ⏯ ⏭ | Previous track / play-pause / next track |
 | Click the progress bar | Seek forward or backward in the track |
 | Change the volume | The notch shows the volume level |
-| Right-click the icon next to the clock | **Launch at Windows startup** / **Quit** |
+| **Ctrl+Alt+M**, or the 🔍 in the notch | Open the music search (built-in player) |
+| Right-click the icon next to the clock | **Search music** / **Stop music** / **Launch at Windows startup** / **Quit** |
 
 Only one instance can run at a time: launching the program again does not create a second notch.
 
@@ -95,6 +99,31 @@ NotchIsland reads the information apps share with Windows' own media controls
 - Windows Media Player, VLC (recent versions), and many more
 
 If there are several sources, the notch picks the one that **is currently playing**.
+
+## Built-in player
+
+No need to keep Chrome open on YouTube Music or Spotify: NotchIsland can play the music itself.
+
+1. Press **Ctrl+Alt+M** (or hover the notch and click **Search music** / 🔍).
+2. Type a song, or paste a link:
+   - **YouTube / YouTube Music**: a song, a playlist or an album;
+   - **Spotify**: a track, an album or a playlist (each track is played from YouTube Music).
+3. **Enter** plays the selection, **Ctrl+Enter** puts it right after the current track.
+   With the search field empty, the panel shows the queue: click a track to jump to it.
+
+If Ctrl+Alt+M is already used by another app, Ctrl+Alt+Y (then Ctrl+Alt+P) is used instead:
+the tray menu shows the active shortcut.
+
+When the queue runs out, the YouTube Music radio of the last track continues automatically.
+
+**Priority**: while the built-in player is active, the notch shows and controls *it*, even if a video
+plays in a browser or another app, and the keyboard **media keys** (play/pause, next, previous, stop)
+go to it. Stop it (■ in the player, or **Stop music** in the tray menu) to give everything back
+to the other apps.
+
+Audio is downloaded to `%LOCALAPPDATA%\NotchIsland\cache` (the last 40 tracks are kept),
+which makes seeking instant and the next track start without a gap. No account is needed;
+your personal YouTube Music / Spotify libraries are not available, use their share links instead.
 
 ## Run from source
 
@@ -129,7 +158,7 @@ Use `python` instead of `pythonw` to see error messages in the console.
 ```
 
 ```bash
-.venv\Scripts\pyinstaller --noconfirm --onefile --windowed --name NotchIsland --collect-submodules winrt --collect-submodules comtypes notch.py
+.venv\Scripts\pyinstaller --noconfirm --onefile --windowed --name NotchIsland --collect-submodules winrt --collect-submodules comtypes --collect-submodules yt_dlp --collect-data ytmusicapi --collect-data yt_dlp_ejs notch.py
 ```
 
 The executable is created in `dist\NotchIsland.exe`.
@@ -154,6 +183,9 @@ The executable is created in `dist\NotchIsland.exe`.
   lets the app control playback. It is polled every 350 ms on a separate thread.
 - **Sound**: [pycaw](https://github.com/AndreMiras/pycaw) reads the peak level of the audio output (`IAudioMeterInformation`)
   to drive the equalizer, and the master volume (`IAudioEndpointVolume`) for the volume indicator.
+- **Built-in player** (`music.py`): [ytmusicapi](https://github.com/sigma67/ytmusicapi) for search, links and radio,
+  [yt-dlp](https://github.com/yt-dlp/yt-dlp) to fetch the audio, Qt Multimedia to play it. Media keys are
+  global hotkeys (`RegisterHotKey`) registered only while the player is active.
 - **Rendering**: a transparent, frameless, always-on-top Qt window. The notch shape (with its small concave joins
   to the screen edge) is drawn with Bézier curves. Its width, height and corners are animated by slightly
   underdamped springs, which is where the bounce comes from.
@@ -183,6 +215,10 @@ Animation stiffness and damping live in the `Spring` class (`k` and `d`).
 - The notch appears on the **primary** screen only.
 - Some apps share neither the album art nor the playback position: the notch then shows a default cover
   and hides the progress bar.
+
+- The built-in player relies on YouTube Music's unofficial API and on yt-dlp: if YouTube changes something,
+  update yt-dlp (`.venv\Scripts\pip install -U "yt-dlp[default]"`). Installing [Deno](https://deno.com) or Node.js
+  helps yt-dlp read YouTube.
 
 ## License
 

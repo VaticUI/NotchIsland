@@ -7,6 +7,8 @@ NotchIsland — a macOS-style notch / Dynamic Island for Windows.
 - Shows the volume level when you change it
 - On hover: full player (album art, title, progress, controls)
 - With no music, on hover: time and date
+- Built-in player (music.py): YouTube Music / Spotify links without a browser window.
+  When it is active, it takes priority over every other media source.
 """
 
 import sys
@@ -24,6 +26,8 @@ from PySide6.QtGui import (
     QCursor, QIcon, QPixmap, QLinearGradient, QGuiApplication, QAction, QPen,
 )
 from PySide6.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu
+
+from music import MusicEngine, MusicPanel, Hotkeys
 
 APP_NAME = "NotchIsland"
 
@@ -314,7 +318,7 @@ def font(size, weight=QFont.Normal):
 #  The notch window
 # --------------------------------------------------------------------------- #
 class Notch(QWidget):
-    def __init__(self, worker: MediaWorker):
+    def __init__(self, worker: MediaWorker, engine: MusicEngine):
         super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
                          | Qt.WindowDoesNotAcceptFocus | Qt.NoDropShadowWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -323,11 +327,20 @@ class Notch(QWidget):
         self.resize(WIN_W, WIN_H)
 
         self.worker = worker
-        worker.changed.connect(self.on_media)
+        self.engine = engine
+        worker.changed.connect(lambda d: self.on_media(d, "system"))
+        engine.changed.connect(lambda d: self.on_media(d, "builtin"))
         self.audio = AudioProbe()
+        self.on_search = None     # opens the music search panel
+        self.panel = None
 
+        # last data of each source; the built-in player has priority over the others
+        self.sources = {"system": {"has_media": False}, "builtin": {"has_media": False}}
+        self.thumbs = {"system": None, "builtin": None}
+        self.src = "system"
         self.media = {"has_media": False, "key": None}
         self.art = None
+        self._art_data = None
         self.art_cache = {}
         self.accent = QColor(235, 235, 240)
 
@@ -398,21 +411,27 @@ class Notch(QWidget):
         return p
 
     # --- media data ------------------------------------------------------ #
-    def on_media(self, d):
-        prev_key = self.media.get("key")
+    def on_media(self, d, src):
         if "thumb" in d:
-            self.set_art(d["thumb"])
+            self.thumbs[src] = d["thumb"]
+        self.sources[src] = {k: v for k, v in d.items() if k != "thumb"}
+        new_src = "builtin" if self.sources["builtin"].get("has_media") else "system"
+        d = self.sources[new_src]
+        if self.thumbs[new_src] is not self._art_data:
+            self.set_art(self.thumbs[new_src])
+        self.src = new_src
+
+        prev_key = self.media.get("key")
         if d.get("has_media") and d.get("key") != prev_key:
             if not self.first_media and d.get("playing"):
                 self.peek_until = time.monotonic() + 3.2
             self.first_media = False
-        self.media.update(d)
-        if not d.get("has_media"):
-            self.media = {"has_media": False, "key": None}
+        self.media = dict(d) if d.get("has_media") else {"has_media": False, "key": None}
         if self.optimistic and time.monotonic() > self.optimistic[1]:
             self.optimistic = None
 
     def set_art(self, data):
+        self._art_data = data
         self.art_cache.clear()
         if not data:
             self.art = None
@@ -449,6 +468,8 @@ class Notch(QWidget):
         # hover (check the cursor position: more reliable than enter/leave with a mask)
         rc = self.notch_rect().adjusted(-EAR, 0, EAR, 2)
         inside = rc.contains(QPointF(self.mapFromGlobal(QCursor.pos())))
+        if self.panel is not None and self.panel.isVisible():
+            inside = False       # stay compact above the search panel
         if inside:
             self.leave_since = None
             self.hover_since = self.hover_since or now
@@ -664,9 +685,16 @@ class Notch(QWidget):
         p.setFont(font(15, QFont.DemiBold))
         p.setPen(QColor(255, 255, 255, 200))
         p.drawText(QRectF(rc.left(), 92, rc.width(), 24), Qt.AlignCenter, date[:1].upper() + date[1:])
-        p.setFont(font(12))
-        p.setPen(QColor(255, 255, 255, 110))
-        p.drawText(QRectF(rc.left(), 140, rc.width(), 20), Qt.AlignCenter, "♪  Nothing playing")
+        # "search music" button
+        hit = QRectF(rc.center().x() - 80, 136, 160, 28)
+        self.buttons["search"] = hit
+        hot = hit.contains(QPointF(self.mapFromGlobal(QCursor.pos())))
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, 34 if hot else 18))
+        p.drawRoundedRect(hit, 14, 14)
+        p.setFont(font(12, QFont.DemiBold))
+        p.setPen(QColor(255, 255, 255, 230 if hot else 150))
+        p.drawText(hit, Qt.AlignCenter, "♪  Search music")
 
     def draw_player(self, p, rc, t):
         m = self.media
@@ -727,6 +755,20 @@ class Notch(QWidget):
             col = QColor(255, 255, 255, 255 if enabled else 70)
             self.draw_icon(p, name, x, cy, size, col)
 
+        # search (always) and stop (built-in player only), smaller, on the sides
+        side = [("search", x1 - pad - 14)]
+        if self.src == "builtin":
+            side.append(("stop", x0 + pad + 14))
+        for name, x in side:
+            hit = QRectF(x - 16, cy - 16, 32, 32)
+            self.buttons[name] = hit
+            hot = hit.contains(cursor)
+            if hot:
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor(255, 255, 255, 30))
+                p.drawEllipse(hit.center(), 15, 15)
+            self.draw_icon(p, name, x, cy, 13, QColor(255, 255, 255, 230 if hot else 140))
+
     def draw_icon(self, p, name, cx, cy, s, col):
         p.setPen(Qt.NoPen)
         p.setBrush(col)
@@ -759,24 +801,44 @@ class Notch(QWidget):
             tri(cx + s * 0.05, cy, s * 0.7, s * 0.85, left=True)
             tri(cx - s * 0.6, cy, s * 0.7, s * 0.85, left=True)
             p.drawRoundedRect(QRectF(cx - s * 0.6 - 2.2, cy - s * 0.42, 2.2, s * 0.84), 1, 1)
+        elif name == "stop":
+            p.drawRoundedRect(QRectF(cx - s * 0.4, cy - s * 0.4, s * 0.8, s * 0.8), 2, 2)
+        elif name == "search":
+            pen = QPen(col)
+            pen.setWidthF(1.8)
+            pen.setCapStyle(Qt.RoundCap)
+            p.setPen(pen)
+            p.setBrush(Qt.NoBrush)
+            r = s * 0.36
+            c = QPointF(cx - s * 0.1, cy - s * 0.1)
+            p.drawEllipse(c, r, r)
+            p.drawLine(QPointF(c.x() + r * 0.72, c.y() + r * 0.72), QPointF(cx + s * 0.45, cy + s * 0.45))
 
     # --- clicks ------------------------------------------------------------ #
+    def target(self):
+        """Where the player commands go: the built-in player first."""
+        return self.engine if self.src == "builtin" else self.worker
+
     def mousePressEvent(self, e):
         if e.button() != Qt.LeftButton or self.state != "expanded":
             return
         pos = e.position()
         for name, rect in self.buttons.items():
             if rect is not None and rect.contains(pos):
+                if name == "search":
+                    if self.on_search:
+                        self.on_search()
+                    return
                 if name == "toggle":
                     self.optimistic = (not self.is_playing(), time.monotonic() + 1.5)
-                self.worker.command(name)
+                self.target().command(name)
                 return
         pr = self.progress_rect
         if pr is not None and pr.contains(pos) and self.media.get("can_seek"):
             frac = (pos.x() - pr.left()) / pr.width()
             target = max(0.0, min(1.0, frac)) * self.media.get("duration", 0)
             self.media["position"], self.media["updated"] = target, time.time()
-            self.worker.command("seek", target)
+            self.target().command("seek", target)
 
 
 # --------------------------------------------------------------------------- #
@@ -840,9 +902,16 @@ def main():
     app.setApplicationName(APP_NAME)
 
     worker = MediaWorker()
-    notch = Notch(worker)
+    engine = MusicEngine()
+    notch = Notch(worker, engine)
+    panel = MusicPanel(engine)
+    notch.panel = panel
+    notch.on_search = panel.open
     worker.start()
     notch.show()
+    hotkeys = Hotkeys(int(notch.winId()), engine, panel.toggle)
+    app.installNativeEventFilter(hotkeys)
+    app.aboutToQuit.connect(engine.shutdown)
 
     icon = make_icon()
     app.setWindowIcon(icon)
@@ -852,6 +921,15 @@ def main():
     title = QAction("NotchIsland", menu)
     title.setEnabled(False)
     menu.addAction(title)
+    menu.addSeparator()
+    search = QAction("Search music…" + (f"\t{hotkeys.search_label}" if hotkeys.search_label else ""), menu)
+    search.triggered.connect(panel.open)
+    menu.addAction(search)
+    stop = QAction("Stop music", menu)
+    stop.triggered.connect(engine.stop)
+    engine.active_changed.connect(stop.setEnabled)
+    stop.setEnabled(False)
+    menu.addAction(stop)
     menu.addSeparator()
     auto = QAction("Launch at Windows startup", menu, checkable=True)
     auto.setChecked(autostart_enabled())
