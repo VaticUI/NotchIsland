@@ -1,12 +1,12 @@
 """
-NotchIsland — une encoche façon macOS / Dynamic Island pour Windows.
+NotchIsland — a macOS-style notch / Dynamic Island for Windows.
 
-- Encoche noire en haut au centre de l'écran principal
-- S'agrandit quand de la musique joue (pochette + égaliseur réactif au son)
-- Affiche un aperçu quand le morceau change
-- Affiche le volume quand on le modifie
-- Au survol : lecteur complet (pochette, titre, progression, contrôles)
-- Sans musique, au survol : heure et date
+- Black notch at the top center of the primary screen
+- Expands when music is playing (album art + equalizer that reacts to the sound)
+- Shows a preview when the track changes
+- Shows the volume level when you change it
+- On hover: full player (album art, title, progress, controls)
+- With no music, on hover: time and date
 """
 
 import sys
@@ -27,7 +27,7 @@ from PySide6.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu
 
 APP_NAME = "NotchIsland"
 
-# (largeur, hauteur, rayon des coins bas)
+# (width, height, bottom corner radius)
 SIZES = {
     "idle": (200, 32, 10),
     "compact": (300, 32, 12),
@@ -35,14 +35,14 @@ SIZES = {
     "peek": (420, 78, 26),
     "expanded": (500, 196, 34),
 }
-EAR = 8          # petites courbes concaves qui raccordent l'encoche au bord de l'écran
+EAR = 8          # small concave curves joining the notch to the screen edge
 WIN_W, WIN_H = 620, 250
 
 PLAYING = 4      # GlobalSystemMediaTransportControlsSessionPlaybackStatus.PLAYING
 
 
 # --------------------------------------------------------------------------- #
-#  Lecture des infos média Windows (thread dédié + boucle asyncio)
+#  Windows media info reader (dedicated thread + asyncio loop)
 # --------------------------------------------------------------------------- #
 def pretty_app_name(aumid: str) -> str:
     if not aumid:
@@ -54,7 +54,7 @@ def pretty_app_name(aumid: str) -> str:
     known = {
         "chrome": "Chrome", "msedge": "Edge", "firefox": "Firefox", "spotify": "Spotify",
         "opera": "Opera", "brave": "Brave", "vlc": "VLC", "deezer": "Deezer",
-        "microsoft.zunemusic": "Lecteur multimédia", "music.ui": "Lecteur multimédia",
+        "microsoft.zunemusic": "Media Player", "music.ui": "Media Player",
         "applemusic": "Apple Music", "discord": "Discord",
     }
     low = name.lower()
@@ -93,7 +93,7 @@ class MediaWorker(QObject):
                 if mgr is None:
                     mgr = await Manager.request_async()
                 await self._poll(mgr)
-            except Exception as e:  # une appli média peut disparaître à tout moment
+            except Exception as e:  # a media app can disappear at any time
                 print("media poll error:", e)
                 self.session = None
             await asyncio.sleep(0.35)
@@ -148,7 +148,7 @@ class MediaWorker(QObject):
             self.key = key
             self.thumb_tries = 0
             d["thumb"] = None
-        # la pochette arrive parfois un peu après le titre (navigateurs) : on réessaie
+        # album art sometimes arrives a bit after the title (browsers): retry
         if self.thumb_tries < 10 and ("thumb" in d or self.thumb_tries > 0):
             try:
                 data = await self._read_thumb(props)
@@ -169,7 +169,7 @@ class MediaWorker(QObject):
         except Exception:
             upd = 0
         if not (now - 86400 < upd <= now + 5):
-            # horodatage inutilisable : on suit la position nous-mêmes
+            # unusable timestamp: track the position ourselves
             if abs(pos - self._local_pos[0]) > 0.01:
                 self._local_pos = (pos, now)
             pos, upd = self._local_pos
@@ -191,7 +191,7 @@ class MediaWorker(QObject):
         })
         self.changed.emit(d)
 
-    # --- commandes -------------------------------------------------------- #
+    # --- commands ---------------------------------------------------------- #
     def command(self, name, arg=None):
         if self.loop:
             asyncio.run_coroutine_threadsafe(self._cmd(name, arg), self.loop)
@@ -214,7 +214,7 @@ class MediaWorker(QObject):
 
 
 # --------------------------------------------------------------------------- #
-#  Audio système (niveau sonore + volume) via pycaw
+#  System audio (sound level + volume) via pycaw
 # --------------------------------------------------------------------------- #
 class AudioProbe:
     def __init__(self):
@@ -237,7 +237,7 @@ class AudioProbe:
             self.meter = self.volume = None
 
     def tick(self):
-        # re-sélectionne régulièrement le périphérique (casque branché, etc.)
+        # re-select the device regularly (headphones plugged in, etc.)
         if time.monotonic() - self.last_refresh > 5:
             self.refresh()
 
@@ -258,10 +258,10 @@ class AudioProbe:
 
 
 # --------------------------------------------------------------------------- #
-#  Petits outils d'animation
+#  Small animation helpers
 # --------------------------------------------------------------------------- #
 class Spring:
-    """Ressort légèrement sous-amorti : donne le petit rebond typique d'Apple."""
+    """Slightly underdamped spring: gives the little bounce typical of Apple."""
 
     def __init__(self, v, k=260.0, d=23.0):
         self.x = self.t = float(v)
@@ -311,7 +311,7 @@ def font(size, weight=QFont.Normal):
 
 
 # --------------------------------------------------------------------------- #
-#  La fenêtre de l'encoche
+#  The notch window
 # --------------------------------------------------------------------------- #
 class Notch(QWidget):
     def __init__(self, worker: MediaWorker):
@@ -331,7 +331,7 @@ class Notch(QWidget):
         self.art_cache = {}
         self.accent = QColor(235, 235, 240)
 
-        # démarrage : l'encoche « pousse » depuis le haut
+        # startup: the notch "grows" from the top
         self.w, self.h, self.r = Spring(110), Spring(4), Spring(6)
         self.state = "idle"
         self.alpha = {k: 0.0 for k in ("compact", "volume", "peek", "expanded")}
@@ -384,7 +384,7 @@ class Notch(QWidget):
         x0, x1, h = rc.left(), rc.right(), rc.height()
         r = max(2.0, min(self.r.x, h / 2, rc.width() / 2))
         e = min(EAR, h / 2)
-        k = 0.5523  # approximation d'un quart de cercle en Bézier
+        k = 0.5523  # Bézier approximation of a quarter circle
         p = QPainterPath()
         p.moveTo(x0 - e, 0)
         p.cubicTo(x0 - e + e * k, 0, x0, e - e * k, x0, e)
@@ -397,7 +397,7 @@ class Notch(QWidget):
         p.closeSubpath()
         return p
 
-    # --- données média ---------------------------------------------------- #
+    # --- media data ------------------------------------------------------ #
     def on_media(self, d):
         prev_key = self.media.get("key")
         if "thumb" in d:
@@ -440,13 +440,13 @@ class Notch(QWidget):
         dur = m.get("duration", 0.0)
         return max(0.0, min(pos, dur)) if dur > 0 else pos
 
-    # --- boucle principale ------------------------------------------------ #
+    # --- main loop --------------------------------------------------- #
     def tick(self):
         now = time.monotonic()
         dt = min(0.05, now - self.last_tick)
         self.last_tick = now
 
-        # survol (on teste la position du curseur : plus fiable qu'enter/leave avec un masque)
+        # hover (check the cursor position: more reliable than enter/leave with a mask)
         rc = self.notch_rect().adjusted(-EAR, 0, EAR, 2)
         inside = rc.contains(QPointF(self.mapFromGlobal(QCursor.pos())))
         if inside:
@@ -460,7 +460,7 @@ class Notch(QWidget):
             if self.hover and now - self.leave_since > 0.3:
                 self.hover = False
 
-        # volume système
+        # system volume
         self.audio.tick()
         v = self.audio.vol()
         if v:
@@ -469,7 +469,7 @@ class Notch(QWidget):
                 self.vol_until = now + 1.6
             self.vol_level, self.vol_muted = lvl, muted
 
-        # niveau sonore pour l'égaliseur
+        # sound level for the equalizer
         playing = self.is_playing() and self.media.get("has_media")
         if playing:
             self.last_playing = now
@@ -479,7 +479,7 @@ class Notch(QWidget):
         a = 0.55 if raw > self.level else 0.12
         self.level += (raw - self.level) * a
 
-        # état cible
+        # target state
         has = self.media.get("has_media")
         if self.hover:
             st = "expanded"
@@ -505,7 +505,7 @@ class Notch(QWidget):
             if abs(self.alpha[k] - target) < 0.003:
                 self.alpha[k] = target
 
-        # masque = zone cliquable ; le reste de la fenêtre laisse passer la souris
+        # mask = clickable area; the rest of the window lets the mouse through
         rc = self.notch_rect()
         mr = (int(rc.left() - EAR - 1), 0, int(rc.width() + 2 * EAR + 3), int(rc.height() + 2))
         if mr != self._mask_rect:
@@ -513,7 +513,7 @@ class Notch(QWidget):
             self.setMask(QRegion(*mr))
         self.update()
 
-    # --- dessin ----------------------------------------------------------- #
+    # --- drawing ---------------------------------------------------------- #
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform | QPainter.TextAntialiasing)
@@ -579,7 +579,7 @@ class Notch(QWidget):
     def draw_volume(self, p, rc, t):
         cy = 16
         x = rc.left() + 16
-        # haut-parleur
+        # speaker
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(255, 255, 255))
         sp = QPainterPath()
@@ -605,7 +605,7 @@ class Notch(QWidget):
                 r = 4 + i * 3.5
                 p.drawArc(QRectF(x + 8 - r + 2, cy - r, 2 * r, 2 * r), -50 * 16, 100 * 16)
 
-        # barre
+        # bar
         bx0, bx1 = rc.left() + 44, rc.right() - 46
         track = QRectF(bx0, cy - 2.5, bx1 - bx0, 5)
         p.setPen(Qt.NoPen)
@@ -619,7 +619,7 @@ class Notch(QWidget):
         p.drawText(QRectF(bx1 + 6, 0, 40, 32), Qt.AlignVCenter | Qt.AlignLeft, f"{round(lvl * 100)}")
 
     def draw_text(self, p, text, fnt, rect, color, t=None):
-        """Texte sur une ligne ; défile (marquee) s'il est trop long et que t est fourni."""
+        """Single-line text; scrolls (marquee) if too long and t is given."""
         p.setFont(fnt)
         p.setPen(color)
         fm = QFontMetricsF(fnt)
@@ -655,18 +655,18 @@ class Notch(QWidget):
             self.draw_clock(p, rc)
 
     def draw_clock(self, p, rc):
-        loc = QLocale(QLocale.French, QLocale.France)
+        loc = QLocale(QLocale.English, QLocale.UnitedStates)
         now = QDateTime.currentDateTime()
         p.setPen(QColor(255, 255, 255))
         p.setFont(font(46, QFont.Light))
-        p.drawText(QRectF(rc.left(), 26, rc.width(), 64), Qt.AlignCenter, loc.toString(now, "HH:mm"))
-        date = loc.toString(now, "dddd d MMMM")
+        p.drawText(QRectF(rc.left(), 26, rc.width(), 64), Qt.AlignCenter, loc.toString(now, "h:mm AP"))
+        date = loc.toString(now, "dddd, MMMM d")
         p.setFont(font(15, QFont.DemiBold))
         p.setPen(QColor(255, 255, 255, 200))
         p.drawText(QRectF(rc.left(), 92, rc.width(), 24), Qt.AlignCenter, date[:1].upper() + date[1:])
         p.setFont(font(12))
         p.setPen(QColor(255, 255, 255, 110))
-        p.drawText(QRectF(rc.left(), 140, rc.width(), 20), Qt.AlignCenter, "♪  Aucune lecture en cours")
+        p.drawText(QRectF(rc.left(), 140, rc.width(), 20), Qt.AlignCenter, "♪  Nothing playing")
 
     def draw_player(self, p, rc, t):
         m = self.media
@@ -689,7 +689,7 @@ class Notch(QWidget):
                            QColor(self.accent))
         self.draw_bars(p, x1 - pad - 10, 44, 5, 3, 2.5, 20, t)
 
-        # progression
+        # progress
         dur = m.get("duration", 0.0)
         pos = self.position()
         py = 134
@@ -712,7 +712,7 @@ class Notch(QWidget):
             p.drawRoundedRect(QRectF(bx0, bar.top(), max(bh, bar.width() * pos / dur), bh), bh / 2, bh / 2)
             self.progress_rect = QRectF(bx0, py - 10, bx1 - bx0, 20)
 
-        # contrôles
+        # controls
         cy = 170
         cx = rc.center().x()
         cursor = QPointF(self.mapFromGlobal(QCursor.pos()))
@@ -760,7 +760,7 @@ class Notch(QWidget):
             tri(cx - s * 0.6, cy, s * 0.7, s * 0.85, left=True)
             p.drawRoundedRect(QRectF(cx - s * 0.6 - 2.2, cy - s * 0.42, 2.2, s * 0.84), 1, 1)
 
-    # --- clics ------------------------------------------------------------ #
+    # --- clicks ------------------------------------------------------------ #
     def mousePressEvent(self, e):
         if e.button() != Qt.LeftButton or self.state != "expanded":
             return
@@ -780,7 +780,7 @@ class Notch(QWidget):
 
 
 # --------------------------------------------------------------------------- #
-#  Icône de la zone de notification + démarrage automatique
+#  System tray icon + autostart
 # --------------------------------------------------------------------------- #
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -830,7 +830,7 @@ def make_icon():
 
 
 def main():
-    # une seule instance à la fois
+    # only one instance at a time
     ctypes.windll.kernel32.CreateMutexW(None, False, "Global\\NotchIsland_single_instance")
     if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
         return
@@ -853,12 +853,12 @@ def main():
     title.setEnabled(False)
     menu.addAction(title)
     menu.addSeparator()
-    auto = QAction("Lancer au démarrage de Windows", menu, checkable=True)
+    auto = QAction("Launch at Windows startup", menu, checkable=True)
     auto.setChecked(autostart_enabled())
     auto.toggled.connect(set_autostart)
     menu.addAction(auto)
     menu.addSeparator()
-    quit_action = QAction("Quitter", menu)
+    quit_action = QAction("Quit", menu)
     quit_action.triggered.connect(app.quit)
     menu.addAction(quit_action)
     tray.setContextMenu(menu)

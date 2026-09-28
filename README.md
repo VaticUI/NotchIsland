@@ -2,103 +2,103 @@
 
 # NotchIsland
 
-**L'encoche du MacBook et la Dynamic Island de l'iPhone, sur Windows.**
+**The MacBook notch and the iPhone Dynamic Island, on Windows.**
 
-Une encoche noire vit en haut de ton écran, s'anime quand tu écoutes de la musique,
-affiche le volume, le morceau suivant, et se transforme en mini-lecteur quand tu passes la souris dessus.
+A black notch lives at the top of your screen. It comes alive when you listen to music,
+shows the volume and the next track, and turns into a mini player when you hover over it.
 
-![Démo](docs/demo.gif)
+![Demo](docs/demo.gif)
 
 [![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white)](#installation)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](#lancer-depuis-le-code-source)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](#run-from-source)
 [![PySide6](https://img.shields.io/badge/UI-PySide6%20(Qt)-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
-[![Licence MIT](https://img.shields.io/badge/licence-MIT-lightgrey)](LICENSE)
+[![MIT License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
-[**⬇ Télécharger NotchIsland.exe**](https://github.com/VaticUI/NotchIsland/releases/latest)
+[**⬇ Download NotchIsland.exe**](https://github.com/VaticUI/NotchIsland/releases/latest)
 
 </div>
 
 ---
 
-## Sommaire
+## Contents
 
-- [Fonctionnalités](#fonctionnalités)
-- [Aperçu des états](#aperçu-des-états)
+- [Features](#features)
+- [States](#states)
 - [Installation](#installation)
-- [Utilisation](#utilisation)
-- [Applications compatibles](#applications-compatibles)
-- [Lancer depuis le code source](#lancer-depuis-le-code-source)
-- [Compiler l'exécutable](#compiler-lexécutable)
-- [Comment ça marche](#comment-ça-marche)
-- [Personnalisation](#personnalisation)
-- [Limites connues](#limites-connues)
-- [Licence](#licence)
+- [Usage](#usage)
+- [Supported apps](#supported-apps)
+- [Run from source](#run-from-source)
+- [Build the executable](#build-the-executable)
+- [How it works](#how-it-works)
+- [Customization](#customization)
+- [Known limitations](#known-limitations)
+- [License](#license)
 
-## Fonctionnalités
+## Features
 
-- 🎵 **Réagit à la musique** : dès qu'un morceau joue, l'encoche s'élargit avec la pochette et un égaliseur animé.
-- 📈 **Égaliseur branché sur le vrai son** : les barres suivent le niveau sonore réel du PC, pas une animation en boucle.
-- 🎨 **Couleurs de la pochette** : l'égaliseur et le nom de l'appli prennent la couleur dominante de l'album.
-- 🔔 **Aperçu au changement de morceau** : titre, artiste et pochette s'affichent quelques secondes.
-- 🔊 **Indicateur de volume** : l'encoche montre le niveau du volume quand tu le modifies (et le mode muet).
-- 🖱️ **Lecteur complet au survol** : pochette, titre défilant, source, barre de progression cliquable, précédent / lecture / suivant.
-- 🕒 **Horloge** : sans musique, le survol affiche l'heure et la date.
-- 🪄 **Animations à ressort** : rebond léger dans l'esprit des animations d'Apple.
-- 🫥 **Discrète** : pas de fenêtre dans la barre des tâches, ne vole jamais le focus, les clics à côté de l'encoche passent au travers.
-- 🚀 **Démarrage automatique** en option, depuis l'icône de la zone de notification.
+- 🎵 **Reacts to music**: as soon as a track plays, the notch widens to show the album art and an animated equalizer.
+- 📈 **Equalizer driven by the real sound**: the bars follow your PC's actual audio level, not a looping animation.
+- 🎨 **Album art colors**: the equalizer and the app name take on the dominant color of the cover.
+- 🔔 **Track change preview**: title, artist and cover appear for a few seconds.
+- 🔊 **Volume indicator**: the notch shows the volume level when you change it (and when muted).
+- 🖱️ **Full player on hover**: album art, scrolling title, source app, clickable progress bar, previous / play / next.
+- 🕒 **Clock**: with no music playing, hovering shows the time and date.
+- 🪄 **Spring animations**: a slight bounce, in the spirit of Apple's animations.
+- 🫥 **Unobtrusive**: no taskbar entry, never steals focus, and clicks next to the notch go straight through.
+- 🚀 **Optional autostart** from the system tray icon.
 
-## Aperçu des états
+## States
 
-| État | Aperçu |
+| State | Preview |
 |---|---|
-| **Repos** : l'encoche noire, simplement | ![Repos](docs/idle.png) |
-| **Musique en cours** : pochette + égaliseur | ![Compact](docs/compact.png) |
-| **Nouveau morceau** : aperçu pendant ~3 s | ![Aperçu](docs/peek.png) |
-| **Volume** : quand tu montes ou baisses le son | ![Volume](docs/volume.png) |
-| **Survol** : le lecteur complet | ![Lecteur](docs/expanded.png) |
-| **Survol sans musique** : heure et date | ![Horloge](docs/clock.png) |
+| **Idle**: just the black notch | ![Idle](docs/idle.png) |
+| **Music playing**: album art + equalizer | ![Compact](docs/compact.png) |
+| **New track**: preview for ~3 s | ![Preview](docs/peek.png) |
+| **Volume**: when you turn the sound up or down | ![Volume](docs/volume.png) |
+| **Hover**: the full player | ![Player](docs/expanded.png) |
+| **Hover with no music**: time and date | ![Clock](docs/clock.png) |
 
 ## Installation
 
-### Option 1 : l'exécutable (le plus simple)
+### Option 1: the executable (easiest)
 
-1. Télécharge **`NotchIsland.exe`** depuis la page [Releases](https://github.com/VaticUI/NotchIsland/releases/latest).
-2. Double-clique dessus. C'est tout, rien à installer.
+1. Download **`NotchIsland.exe`** from the [Releases](https://github.com/VaticUI/NotchIsland/releases/latest) page.
+2. Double-click it. That's it, nothing to install.
 
-> Windows SmartScreen peut afficher un avertissement car l'exécutable n'est pas signé :
-> clique sur **Informations complémentaires → Exécuter quand même**.
+> Windows SmartScreen may show a warning because the executable is not signed:
+> click **More info → Run anyway**.
 
-### Option 2 : depuis le code source
+### Option 2: from source
 
-Voir [Lancer depuis le code source](#lancer-depuis-le-code-source).
+See [Run from source](#run-from-source).
 
-## Utilisation
+## Usage
 
-| Action | Résultat |
+| Action | Result |
 |---|---|
-| Lancer une musique (Spotify, YouTube…) | L'encoche s'élargit avec la pochette et l'égaliseur |
-| Passer la souris sur l'encoche | Le lecteur complet s'ouvre |
-| Cliquer sur ⏮ ⏯ ⏭ | Morceau précédent / lecture-pause / suivant |
-| Cliquer sur la barre de progression | Avance ou recule dans le morceau |
-| Changer le volume | L'encoche affiche le niveau du volume |
-| Clic droit sur l'icône près de l'horloge | **Lancer au démarrage de Windows** / **Quitter** |
+| Play music (Spotify, YouTube…) | The notch widens with the album art and equalizer |
+| Hover over the notch | The full player opens |
+| Click ⏮ ⏯ ⏭ | Previous track / play-pause / next track |
+| Click the progress bar | Seek forward or backward in the track |
+| Change the volume | The notch shows the volume level |
+| Right-click the icon next to the clock | **Launch at Windows startup** / **Quit** |
 
-Une seule instance peut tourner à la fois : relancer le programme ne crée pas une deuxième encoche.
+Only one instance can run at a time: launching the program again does not create a second notch.
 
-## Applications compatibles
+## Supported apps
 
-NotchIsland lit les informations exposées par Windows à ses propres contrôles média
-(ceux qui apparaissent quand tu appuies sur les touches de volume). Tout ce qui s'y affiche fonctionne, par exemple :
+NotchIsland reads the information apps share with Windows' own media controls
+(the ones that appear when you press the volume keys). Anything that shows up there works, for example:
 
 - Spotify, Deezer, Apple Music, Tidal
-- YouTube, YouTube Music, SoundCloud, Twitch… dans **Chrome**, **Edge**, **Firefox**, **Brave**, **Opera**
-- Lecteur multimédia Windows, VLC (versions récentes), et bien d'autres
+- YouTube, YouTube Music, SoundCloud, Twitch… in **Chrome**, **Edge**, **Firefox**, **Brave**, **Opera**
+- Windows Media Player, VLC (recent versions), and many more
 
-S'il y a plusieurs sources, l'encoche choisit celle qui **est en train de jouer**.
+If there are several sources, the notch picks the one that **is currently playing**.
 
-## Lancer depuis le code source
+## Run from source
 
-Prérequis : **Windows 10 ou 11** et **Python 3.10+**.
+Requirements: **Windows 10 or 11** and **Python 3.10+**.
 
 ```bash
 git clone https://github.com/VaticUI/NotchIsland.git
@@ -120,9 +120,9 @@ python -m venv .venv
 .venv\Scripts\pythonw notch.py
 ```
 
-Utilise `python` au lieu de `pythonw` pour voir les messages d'erreur dans la console.
+Use `python` instead of `pythonw` to see error messages in the console.
 
-## Compiler l'exécutable
+## Build the executable
 
 ```bash
 .venv\Scripts\pip install pyinstaller
@@ -132,60 +132,60 @@ Utilise `python` au lieu de `pythonw` pour voir les messages d'erreur dans la co
 .venv\Scripts\pyinstaller --noconfirm --onefile --windowed --name NotchIsland --collect-submodules winrt --collect-submodules comtypes notch.py
 ```
 
-L'exécutable est créé dans `dist\NotchIsland.exe`.
+The executable is created in `dist\NotchIsland.exe`.
 
-## Comment ça marche
+## How it works
 
 ```
-┌─────────────────────────┐   signaux Qt   ┌────────────────────────────┐
-│ MediaWorker (thread)    │ ─────────────▶ │ Notch (fenêtre Qt, 60 i/s) │
-│ asyncio + WinRT         │                │ ressorts + dessin QPainter │
-│ titre, artiste, pochette│ ◀───────────── │ clics lecteur + recherche  │
-│ position, contrôles     │   commandes    └─────────────┬──────────────┘
-└─────────────────────────┘                              │
-                                            ┌────────────▼─────────────┐
-                                            │ AudioProbe (pycaw/WASAPI)│
-                                            │ niveau sonore + volume   │
-                                            └──────────────────────────┘
+┌──────────────────────────┐   Qt signals   ┌────────────────────────────┐
+│ MediaWorker (thread)     │ ─────────────▶ │ Notch (Qt window, 60 fps)  │
+│ asyncio + WinRT          │                │ springs + QPainter drawing │
+│ title, artist, cover     │ ◀───────────── │ player clicks + seeking    │
+│ position, controls       │    commands    └─────────────┬──────────────┘
+└──────────────────────────┘                              │
+                                             ┌────────────▼─────────────┐
+                                             │ AudioProbe (pycaw/WASAPI)│
+                                             │ sound level + volume     │
+                                             └──────────────────────────┘
 ```
 
-- **Infos média** : l'API Windows `GlobalSystemMediaTransportControlsSessionManager`
-  (via [PyWinRT](https://github.com/pywinrt/pywinrt)) donne le titre, l'artiste, la pochette, la position et
-  permet de piloter la lecture. Elle est interrogée toutes les 350 ms dans un thread séparé.
-- **Son** : [pycaw](https://github.com/AndreMiras/pycaw) lit le niveau de crête de la sortie audio (`IAudioMeterInformation`)
-  pour animer l'égaliseur, et le volume maître (`IAudioEndpointVolume`) pour l'indicateur de volume.
-- **Rendu** : une fenêtre Qt transparente, sans bordure, toujours au premier plan. La forme de l'encoche
-  (avec ses petits raccords concaves au bord de l'écran) est dessinée en courbes de Bézier. Sa largeur, sa hauteur
-  et ses coins sont animés par des ressorts légèrement sous-amortis, d'où le rebond.
-- **Clics** : un masque de fenêtre suit la forme de l'encoche, donc tout ce qui est à côté reste cliquable normalement.
+- **Media info**: the Windows API `GlobalSystemMediaTransportControlsSessionManager`
+  (via [PyWinRT](https://github.com/pywinrt/pywinrt)) provides the title, artist, album art and position, and
+  lets the app control playback. It is polled every 350 ms on a separate thread.
+- **Sound**: [pycaw](https://github.com/AndreMiras/pycaw) reads the peak level of the audio output (`IAudioMeterInformation`)
+  to drive the equalizer, and the master volume (`IAudioEndpointVolume`) for the volume indicator.
+- **Rendering**: a transparent, frameless, always-on-top Qt window. The notch shape (with its small concave joins
+  to the screen edge) is drawn with Bézier curves. Its width, height and corners are animated by slightly
+  underdamped springs, which is where the bounce comes from.
+- **Clicks**: a window mask follows the notch shape, so everything next to it stays clickable as usual.
 
-## Personnalisation
+## Customization
 
-Tout se règle en haut de [`notch.py`](notch.py) :
+Everything is set at the top of [`notch.py`](notch.py):
 
 ```python
 SIZES = {
-    "idle": (200, 32, 10),       # (largeur, hauteur, rayon des coins)
+    "idle": (200, 32, 10),       # (width, height, corner radius)
     "compact": (300, 32, 12),
     "volume": (320, 32, 12),
     "peek": (420, 78, 26),
     "expanded": (500, 196, 34),
 }
-EAR = 8   # taille des raccords concaves avec le bord de l'écran
+EAR = 8   # size of the concave joins with the screen edge
 ```
 
-La raideur et l'amortissement des animations sont dans la classe `Spring` (`k` et `d`).
+Animation stiffness and damping live in the `Spring` class (`k` and `d`).
 
-## Limites connues
+## Known limitations
 
-- L'indicateur de volume de Windows s'affiche toujours en plus de celui de l'encoche.
-- L'égaliseur suit **tout** le son du PC (notifications, jeux…), pas uniquement la musique.
-- L'encoche s'affiche sur l'écran **principal** seulement.
-- Certaines applis ne partagent ni la pochette ni la position de lecture : l'encoche affiche alors une pochette par défaut
-  et masque la barre de progression.
+- Windows' own volume indicator still appears alongside the notch's.
+- The equalizer follows **all** PC sound (notifications, games…), not only the music.
+- The notch appears on the **primary** screen only.
+- Some apps share neither the album art nor the playback position: the notch then shows a default cover
+  and hides the progress bar.
 
-## Licence
+## License
 
-[MIT](LICENSE). Libre à toi de l'utiliser, la modifier et la partager.
+[MIT](LICENSE). Feel free to use, modify and share it.
 
-*Projet non affilié à Apple. « MacBook », « iPhone » et « Dynamic Island » sont des marques d'Apple Inc.*
+*Not affiliated with Apple. "MacBook", "iPhone" and "Dynamic Island" are trademarks of Apple Inc.*
