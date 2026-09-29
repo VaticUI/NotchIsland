@@ -262,6 +262,63 @@ class AudioProbe:
 
 
 # --------------------------------------------------------------------------- #
+#  Frame clock synced to the display (DwmFlush = wait for the next vsync)
+# --------------------------------------------------------------------------- #
+class VsyncClock(QObject):
+    """Emits `frame` once per screen refresh (144 Hz screen = 144 frames/s) while running.
+    Falls back to a precise timer if DWM is not available."""
+    frame = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._run = threading.Event()
+        self._consumed = threading.Event()
+        self._consumed.set()
+        self.fallback = None
+        try:
+            self._flush = ctypes.windll.dwmapi.DwmFlush
+            if self._flush() != 0:
+                raise OSError
+        except (OSError, AttributeError):
+            self.fallback = QTimer(self)
+            self.fallback.setTimerType(Qt.PreciseTimer)
+            self.fallback.setInterval(8)
+            self.fallback.timeout.connect(self.frame)
+        else:
+            threading.Thread(target=self._loop, daemon=True).start()
+
+    def _loop(self):
+        while True:
+            self._run.wait()
+            if self._flush() != 0:
+                time.sleep(0.007)
+            # never queue more than one frame: skip a vsync if the previous one is not drawn yet
+            if self._consumed.is_set():
+                self._consumed.clear()
+                try:
+                    self.frame.emit()
+                except RuntimeError:     # app closing
+                    return
+
+    def done(self):
+        self._consumed.set()
+
+    def start(self):
+        if self.fallback is not None:
+            self.fallback.start()
+        self._run.set()
+
+    def stop(self):
+        if self.fallback is not None:
+            self.fallback.stop()
+        self._run.clear()
+
+    @property
+    def running(self):
+        return self._run.is_set()
+
+
+# --------------------------------------------------------------------------- #
 #  Small animation helpers
 # --------------------------------------------------------------------------- #
 class Spring:
@@ -373,10 +430,15 @@ class Notch(QWidget):
         self.place()
         QGuiApplication.primaryScreen().geometryChanged.connect(lambda *_: self.place())
 
-        self.timer = QTimer(self)
-        self.timer.setTimerType(Qt.PreciseTimer)
-        self.timer.timeout.connect(self.tick)
-        self.timer.start(16)
+        # animation: one frame per screen refresh while something moves,
+        # a slow poll (hover, volume) when the notch is idle
+        self.clock = VsyncClock(self)
+        self.clock.frame.connect(self.tick)
+        self.idle_timer = QTimer(self)
+        self.idle_timer.timeout.connect(self.tick)
+        self.idle_timer.setInterval(25)
+        self.clock.start()
+        QTimer.singleShot(300, self.prewarm)
 
         self.raise_timer = QTimer(self)
         self.raise_timer.timeout.connect(self.raise_)
@@ -445,6 +507,29 @@ class Notch(QWidget):
         img = img.copy((img.width() - side) // 2, (img.height() - side) // 2, side, side)
         self.art = img
         self.accent = accent_from(img)
+        self.warm_art()
+
+    def prewarm(self):
+        """Draw every layer once off screen: loads the fonts before the first hover."""
+        img = QImage(WIN_W, WIN_H, QImage.Format_ARGB32_Premultiplied)
+        img.fill(Qt.transparent)
+        p = QPainter(img)
+        p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform | QPainter.TextAntialiasing)
+        rc = QRectF((WIN_W - 500) / 2, 0, 500, 196)
+        for fn in (self.draw_compact, self.draw_volume, self.draw_peek, self.draw_player):
+            fn(p, rc, 0.0)
+        self.draw_clock(p, rc)
+        p.end()
+        self.buttons, self.progress_rect = {}, None
+
+    def warm_art(self):
+        if self.art is None:
+            return
+        img = QImage(64, 64, QImage.Format_ARGB32_Premultiplied)
+        p = QPainter(img)
+        for side in (22, 50, 88):
+            self.draw_art(p, QRectF(0, 0, side, side), 6)
+        p.end()
 
     def is_playing(self):
         if self.optimistic and time.monotonic() < self.optimistic[1]:
@@ -464,6 +549,12 @@ class Notch(QWidget):
         now = time.monotonic()
         dt = min(0.05, now - self.last_tick)
         self.last_tick = now
+        try:
+            self._tick(now, dt)
+        finally:
+            self.clock.done()
+
+    def _tick(self, now, dt):
 
         # hover (check the cursor position: more reliable than enter/leave with a mask)
         rc = self.notch_rect().adjusted(-EAR, 0, EAR, 2)
@@ -498,6 +589,7 @@ class Notch(QWidget):
         else:
             raw = 0.0
         a = 0.55 if raw > self.level else 0.12
+        a = 1 - (1 - a) ** (dt * 60)
         self.level += (raw - self.level) * a
 
         # target state
@@ -532,7 +624,19 @@ class Notch(QWidget):
         if mr != self._mask_rect:
             self._mask_rect = mr
             self.setMask(QRegion(*mr))
-        self.update()
+
+        settled = all(s.settled for s in (self.w, self.h, self.r)) and all(a in (0.0, 1.0) for a in self.alpha.values())
+        animating = not settled or st != "idle"
+        if animating or st != getattr(self, "_drawn_state", None):
+            self._drawn_state = st
+            self.update()
+        # vsync while something moves, slow polling otherwise
+        if animating and not self.clock.running:
+            self.idle_timer.stop()
+            self.clock.start()
+        elif not animating and self.clock.running:
+            self.clock.stop()
+            self.idle_timer.start()
 
     # --- drawing ---------------------------------------------------------- #
     def paintEvent(self, _):
