@@ -19,8 +19,9 @@ import random
 import asyncio
 import threading
 import ctypes
+from ctypes import wintypes
 
-from PySide6.QtCore import Qt, QObject, Signal, QTimer, QRectF, QPointF, QLocale, QDateTime
+from PySide6.QtCore import Qt, QObject, Signal, QTimer, QRectF, QPointF, QPoint, QLocale, QDateTime
 from PySide6.QtGui import (
     QPainter, QPainterPath, QColor, QFont, QFontMetricsF, QImage, QRegion,
     QCursor, QIcon, QPixmap, QLinearGradient, QGuiApplication, QAction, QPen,
@@ -262,6 +263,48 @@ class AudioProbe:
 
 
 # --------------------------------------------------------------------------- #
+#  Full screen detection (games)
+# --------------------------------------------------------------------------- #
+QUNS_RUNNING_D3D_FULL_SCREEN = 3
+SHELL_CLASSES = ("Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd")
+
+
+def fullscreen_app(screen):
+    """True when the app in front covers the whole screen: exclusive full screen game,
+    or borderless "windowed full screen" game (also a video or a browser in full screen)."""
+    user32 = ctypes.windll.user32
+    fg = user32.GetForegroundWindow()
+    if not fg or user32.IsZoomed(fg):          # a maximized window keeps the taskbar: not full screen
+        return False
+    cls = ctypes.create_unicode_buffer(64)
+    user32.GetClassNameW(fg, cls, 64)
+    if cls.value in SHELL_CLASSES:             # desktop / taskbar in front
+        return False
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(fg, ctypes.byref(pid))
+    if pid.value == os.getpid():               # our own windows (search panel…)
+        return False
+    r = wintypes.RECT()
+    user32.GetWindowRect(fg, ctypes.byref(r))
+    g, dpr = screen.geometry(), screen.devicePixelRatio()
+    covers = (r.left <= g.x() * dpr + 1 and r.top <= g.y() * dpr + 1
+              and r.right >= (g.x() + g.width()) * dpr - 1 and r.bottom >= (g.y() + g.height()) * dpr - 1)
+    if covers:
+        return True
+    # exclusive full screen (Direct3D) on the main screen
+    state = ctypes.c_int(0)
+    try:
+        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state)) == 0 \
+                and state.value == QUNS_RUNNING_D3D_FULL_SCREEN:
+            mon = user32.MonitorFromWindow(fg, 2)      # MONITOR_DEFAULTTONEAREST
+            primary = user32.MonitorFromPoint(wintypes.POINT(0, 0), 1)
+            return mon == primary
+    except OSError:
+        pass
+    return False
+
+
+# --------------------------------------------------------------------------- #
 #  Frame clock synced to the display (DwmFlush = wait for the next vsync)
 # --------------------------------------------------------------------------- #
 class VsyncClock(QObject):
@@ -427,8 +470,17 @@ class Notch(QWidget):
         self.last_tick = time.monotonic()
         self._mask_rect = None
 
-        self.place()
-        QGuiApplication.primaryScreen().geometryChanged.connect(lambda *_: self.place())
+        # stay centered on the main screen, whatever it is: new main screen, screen plugged in or
+        # unplugged, resolution or scaling changed
+        self._screen = None
+        self._placed_at = 0.0
+        self.fs_hidden = False       # hidden while a game (or any full screen app) is in front
+        self.fs_checked = 0.0
+        app = QGuiApplication.instance()
+        app.primaryScreenChanged.connect(self.watch_screen)
+        app.screenAdded.connect(self.place)
+        app.screenRemoved.connect(self.place)
+        self.watch_screen(QGuiApplication.primaryScreen())
 
         # animation: one frame per screen refresh while something moves,
         # a slow poll (hover, volume) when the notch is idle
@@ -445,9 +497,28 @@ class Notch(QWidget):
         self.raise_timer.start(3000)
 
     # --- placement -------------------------------------------------------- #
-    def place(self):
-        g = QGuiApplication.primaryScreen().geometry()
-        self.move(g.x() + (g.width() - WIN_W) // 2, g.y())
+    def watch_screen(self, screen):
+        if self._screen is not None:
+            try:
+                self._screen.geometryChanged.disconnect(self.place)
+            except (RuntimeError, TypeError):
+                pass
+        self._screen = screen
+        if screen is not None:
+            screen.geometryChanged.connect(self.place)
+        self.place()
+
+    def place(self, *_):
+        """Top center of the main screen (logical pixels: resolution and scaling are handled by Qt)."""
+        screen = QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        g = screen.geometry()
+        pos = QPoint(g.x() + (g.width() - WIN_W) // 2, g.y())
+        if self.screen() is not screen:
+            self.setScreen(screen)
+        if self.pos() != pos:
+            self.move(pos)
 
     def notch_rect(self):
         w, h = max(40.0, self.w.x), max(2.0, self.h.x)
@@ -555,6 +626,24 @@ class Notch(QWidget):
             self.clock.done()
 
     def _tick(self, now, dt):
+        # a game in full screen on the main screen: get out of the way (and stop drawing)
+        if now - self.fs_checked > 0.5:
+            self.fs_checked = now
+            fs = fullscreen_app(QGuiApplication.primaryScreen())
+            if fs != self.fs_hidden:
+                self.fs_hidden = fs
+                self.hover = False
+                self.setVisible(not fs)
+        if self.fs_hidden:
+            if self.clock.running:
+                self.clock.stop()
+                self.idle_timer.start()
+            return
+
+        # safety net: Windows can move the window when the screens change (sleep, driver, cable)
+        if now - self._placed_at > 2.0:
+            self._placed_at = now
+            self.place()
 
         # hover (check the cursor position: more reliable than enter/leave with a mask)
         rc = self.notch_rect().adjusted(-EAR, 0, EAR, 2)
